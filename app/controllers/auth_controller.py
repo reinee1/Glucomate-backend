@@ -6,6 +6,7 @@ from app.extensions import db
 from app.models.user import User
 from werkzeug.security import check_password_hash
 from app.utils.email_utils import send_verification_email
+from flask_jwt_extended import create_access_token
 
 def register():
     data = request.get_json() or {}
@@ -90,6 +91,10 @@ def login():
     if not check_password_hash(user.password_hash, password):
         return jsonify({"message": "Invalid credentials", "success": False}), 401
 
+    # Create JWT token
+   # access_token = create_access_token(identity=user.id)
+    access_token = create_access_token(identity=str(user.id))  # convert user.id to string
+
     return jsonify({
         "message": "Login successful",
         "success": True,
@@ -98,5 +103,6 @@ def login():
             "email": user.email,
             "first_name": user.first_name,
             "last_name": user.last_name
-        }
+        },
+        "access_token": access_token
     }), 200
