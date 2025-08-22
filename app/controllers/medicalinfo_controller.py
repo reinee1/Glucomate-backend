@@ -267,3 +267,235 @@ def save_lifestyle_habits():
         db.session.rollback()
         print("Error saving lifestyle habits:", e)
         return jsonify({"success": False, "message": "Error saving lifestyle habits", "error": str(e)}), 500
+    
+
+@jwt_required()
+def update_medical_profile(user_id):
+    # Step 1: Get user ID from JWT
+    try:
+        identity = get_jwt_identity()
+        print("JWT identity:", identity)  # Debug print
+        try:
+            token_user_id = int(identity)
+        except (ValueError, TypeError) as e:
+            print("Error converting JWT identity:", e)
+            return jsonify({"success": False, "message": "Invalid user ID format in token"}), 401
+    except Exception as e:
+        print("Error reading JWT:", e)
+        return jsonify({"success": False, "message": "Invalid token", "error": str(e)}), 401
+
+    # Step 2: Get request data
+    data = request.get_json() or {}
+
+    # Step 3: Ensure the profile exists
+    profile = MedicalProfile.query.filter_by(user_id=user_id).first()
+    if not profile:
+        return jsonify({"success": False, "message": "Medical profile not found"}), 404
+
+    try:
+        # Update date_of_birth if birthYear, birthMonth, birthDay provided
+        if all(k in data for k in ("birthYear", "birthMonth", "birthDay")):
+            profile.date_of_birth = datetime.date(
+                int(data["birthYear"]),
+                int(data["birthMonth"]),
+                int(data["birthDay"])
+            )
+
+        # Update gender
+        profile.gender = data.get("gender", profile.gender)
+
+        # Update height
+        if "height" in data:
+            height = float(data["height"])
+            if data.get("heightUnit") == "ft/in":
+                height *= 30.48
+            profile.height = height
+
+        # Update weight
+        if "weight" in data:
+            weight = float(data["weight"])
+            if data.get("weightUnit") == "lb":
+                weight *= 0.453592
+            profile.weight = weight
+
+        # Update diabetes_type
+        profile.diabetes_type = data.get("diabetesType", profile.diabetes_type)
+
+        # Update diagnosis_year
+        if "diagnosisYear" in data:
+            profile.diagnosis_year = int(data["diagnosisYear"])
+
+        db.session.add(profile)
+        db.session.commit()
+
+        return jsonify({"success": True, "message": "Medical profile updated successfully."})
+
+    except Exception as e:
+        db.session.rollback()
+        print("Error updating medical profile:", e)
+        return jsonify({"success": False, "message": "Error updating profile", "error": str(e)}), 500
+
+
+@jwt_required()
+def update_medical_history(user_id):
+    """Update medical history data and medications for a user"""
+    # Step 1: Get user ID from JWT
+    try:
+        identity = get_jwt_identity()
+        print("JWT identity:", identity)
+        try:
+            token_user_id = int(identity)
+        except (ValueError, TypeError) as e:
+            print("Error converting JWT identity:", e)
+            return jsonify({"success": False, "message": "Invalid user ID format in token"}), 401
+    except Exception as e:
+        print("Error reading JWT:", e)
+        return jsonify({"success": False, "message": "Invalid token", "error": str(e)}), 401
+
+    # Step 2: Get request data
+    data = request.get_json() or {}
+    print("Received medical history update data:", data)
+
+    # Step 3: Validate required fields
+    required_fields = ["medicalConditions", "familyHeartDisease", "takingInsulin"]
+    missing = [f for f in required_fields if f not in data]
+    if missing:
+        return jsonify({"success": False, "message": f"Missing fields: {missing}"}), 422
+
+    # Step 4: Conditional validation
+    if data["familyHeartDisease"] and not data.get("familyMember"):
+        return jsonify({"success": False, "message": "Please specify family member with heart disease"}), 422
+
+    if data["takingInsulin"]:
+        insulin_fields = ["insulinType", "insulinDosage", "insulinSchedule"]
+        missing_insulin = [f for f in insulin_fields if not data.get(f)]
+        if missing_insulin:
+            return jsonify({"success": False, "message": f"Missing insulin info: {missing_insulin}"}), 422
+
+    # Step 5: Update MedicalHistory and medications
+    try:
+        history = MedicalHistory.query.filter_by(user_id=user_id).first()
+        if not history:
+            return jsonify({"success": False, "message": "Medical history not found"}), 404
+
+        history.family_history_heart_disease = bool(data["familyHeartDisease"])
+        history.currently_on_insulin = bool(data["takingInsulin"])
+        # Add other fields like medicalConditions if present in your model
+        # history.medical_conditions = data.get("medicalConditions", history.medical_conditions)
+
+        db.session.add(history)
+
+        # Update medications
+        medications = data.get("medications", [])
+        # Optionally clear old medications
+        UserMedication.query.filter_by(user_id=user_id).delete()
+
+        for med in medications:
+            name = med.get("medication_name")
+            if not name:
+                continue
+
+            existing_med = UserMedication(user_id=user_id, medication_name=name)
+            existing_med.dosage = med.get("dosage", "")
+            existing_med.frequency = med.get("frequency", "")
+            db.session.add(existing_med)
+
+        db.session.commit()
+        print(f"Updated medical history and {len(medications)} medications for user {user_id}")
+
+        return jsonify({"success": True, "message": "Medical history and medications updated successfully."})
+
+    except Exception as e:
+        db.session.rollback()
+        print("Error updating medical history:", e)
+        return jsonify({"success": False, "message": "Error updating medical history", "error": str(e)}), 500
+
+
+
+@jwt_required()
+def update_monitoring_info(user_id):
+    """Update monitoring and control data for a user"""
+    try:
+        # Step 1: Get user ID from JWT
+        identity = get_jwt_identity()
+        print("JWT identity:", identity)
+        try:
+            token_user_id = int(identity)
+        except (ValueError, TypeError) as e:
+            print("Error converting JWT identity:", e)
+            return jsonify({"success": False, "message": "Invalid user ID format in token"}), 401
+
+        # Step 2: Get request data
+        data = request.get_json() or {}
+        print("Received monitoring update data:", data)
+
+        # Step 3: Validate required fields
+        required_fields = ["bloodSugarMonitoring", "usesCGM", "frequentHypoglycemia"]
+        missing = [f for f in required_fields if f not in data]
+        if missing:
+            return jsonify({"success": False, "message": f"Missing fields: {missing}"}), 422
+
+        # Conditional validation
+        if data["usesCGM"] == "yes" and not data.get("cgmFrequency"):
+            return jsonify({"success": False, "message": "Please specify how often you check your CGM"}), 422
+
+        if data["frequentHypoglycemia"] == "yes" and not data.get("hypoglycemiaFrequency"):
+            return jsonify({"success": False, "message": "Please specify how often you experience hypoglycemia"}), 422
+
+        # Validate HbA1c if provided
+        hba1c = None
+        if data.get("hba1cReading"):
+            try:
+                hba1c = float(data["hba1cReading"])
+                if hba1c < 4 or hba1c > 20:
+                    return jsonify({"success": False, "message": "Please enter a valid HbA1c reading (4-20%)"}), 422
+            except (ValueError, TypeError):
+                return jsonify({"success": False, "message": "HbA1c must be a numeric value"}), 422
+
+        # Step 4: Get existing Monitoring record
+        monitoring = Monitoring.query.filter_by(user_id=user_id).first()
+        if not monitoring:
+            return jsonify({"success": False, "message": "Monitoring record not found"}), 404
+
+        # Step 5: Update fields
+        monitoring.glucose_frequency = data["bloodSugarMonitoring"]
+        monitoring.latest_hba1c_percent = hba1c
+        monitoring.uses_cgm = data["usesCGM"] == "yes"
+        monitoring.frequent_hypoglycemia = data["frequentHypoglycemia"] == "yes"
+
+        db.session.add(monitoring)
+        db.session.commit()
+        print("Monitoring updated:", monitoring.id)
+
+        return jsonify({"success": True, "message": "Monitoring information updated successfully."})
+
+    except Exception as e:
+        db.session.rollback()
+        print("Error updating monitoring info:", e)
+        return jsonify({"success": False, "message": "Error updating monitoring information", "error": str(e)}), 500
+
+
+@jwt_required()
+def update_lifestyle_habits(user_id):
+    """Update lifestyle habits for a user"""
+    try:
+        data = request.get_json() or {}
+
+        lifestyle = Lifestyle.query.filter_by(user_id=user_id).first()
+        if not lifestyle:
+            return jsonify({"success": False, "message": "Lifestyle record not found"}), 404
+
+        # Update safely
+        lifestyle.smoking_status = data.get("smokingStatus", lifestyle.smoking_status)
+        lifestyle.alcohol_consumption = data.get("alcoholConsumption", lifestyle.alcohol_consumption)
+        lifestyle.exercise_frequency = data.get("exerciseFrequency", lifestyle.exercise_frequency)
+
+        db.session.add(lifestyle)
+        db.session.commit()
+
+        return jsonify({"success": True, "message": "Lifestyle habits updated successfully."}), 200
+
+    except Exception as e:
+        db.session.rollback()
+        print("Error updating lifestyle habits:", e)
+        return jsonify({"success": False, "message": "Error updating lifestyle habits", "error": str(e)}), 500
