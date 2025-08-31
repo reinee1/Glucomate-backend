@@ -8,49 +8,59 @@ from werkzeug.security import check_password_hash
 from app.utils.email_utils import send_verification_email
 from flask_jwt_extended import create_access_token
 
+def _build_verify_url(token: str) -> str:
+    base = (current_app.config.get('PUBLIC_BASE_URL') or request.url_root).rstrip('/')
+    return f"{base}/api/v1/auth/verify?{urlencode({'token': token})}"
+
 def register():
     data = request.get_json() or {}
     first_name = (data.get("first_name") or "").strip()
     last_name  = (data.get("last_name") or "").strip()
-    email      = (data.get("email") or "").lower()
+    email      = (data.get("email") or "").lower().strip()
     password   = data.get("password")
 
     if not all([first_name, last_name, email, password]):
         return jsonify({"success": False, "message": "All fields required"}), 400
-
     if len(password) < 6:
         return jsonify({"success": False, "message": "Password too short"}), 400
 
     user = User(first_name=first_name, last_name=last_name, email=email)
-    user.is_verified = False 
+    user.is_verified = False
     user.set_password(password)
-    user.set_verification_token()
-
-    query = urlencode({"token": user.verification_token})
-    verify_url = f"{current_app.config.get('PUBLIC_BASE_URL')}/api/v1/auth/verify?{query}"
+    user.set_verification_token()  # must set both token + expires_at in your model
 
     try:
         db.session.add(user)
-        user.is_verified=False
         db.session.commit()
+
+        # Build URL **after** commit, using the stored token
+        verify_url = _build_verify_url(user.verification_token)
+        send_verification_email(user.email, verify_url)
+        return jsonify({"success": True, "message": "User registered. Check email to verify."}), 201
+
     except IntegrityError:
         db.session.rollback()
-        # Find the existing user in the DB
-        existing_user = User.query.filter_by(email=user.email).first()
-        if existing_user and not existing_user.is_verified: #if user found AND NOT VERIFIED ==>RESEND
-            # Resend verification email
-            send_verification_email(existing_user.email, verify_url)
+
+        # Find the existing user
+        existing_user = User.query.filter_by(email=email).first()
+        if existing_user and not existing_user.is_verified:
+            #  Refresh token for EXISTING user, commit, then build URL from that token
+            existing_user.set_verification_token()
+            db.session.commit()
+
+            verify_url = _build_verify_url(existing_user.verification_token)
+            try:
+                send_verification_email(existing_user.email, verify_url)
+            except Exception:
+                current_app.logger.exception("Failed to resend verification email")
+
             return jsonify({
                 "success": True,
                 "message": "Verification email resent. Please check your inbox."
             }), 200
-#ELSE JUST SEND 
+
         return jsonify({"success": False, "message": "Email already exists"}), 409
-
-    # If we get here, user was created successfully
-    send_verification_email(user.email, verify_url)
-    return jsonify({"success": True, "message": "User registered. Check email to verify."}), 201
-
+    
 def verify_email():
     
     token = request.args.get("token")

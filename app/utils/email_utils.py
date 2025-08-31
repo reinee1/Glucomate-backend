@@ -4,10 +4,7 @@ from email.mime.multipart import MIMEMultipart
 from flask import current_app
 
 def send_verification_email(to_email: str, verify_url: str):
-    if not current_app.config.get("EMAIL_ENABLED", True):
-        print(f"[SKIP EMAIL] Verification link: {verify_url}")
-        return
-
+  
     subject = "Verify your Glucomate account"
     body = f"""
     <p>Welcome to Glucomate!</p>
