@@ -1,18 +1,28 @@
-from flask import Blueprint, request, jsonify
-from app.services.firebase_service import verify_id_token
+from flask import Blueprint
+from sqlalchemy import text
+from app.extensions import db
+from app.helpers import api_response
 
-test_bp = Blueprint("test", __name__)
+# This must come BEFORE any route decorators
+bp = Blueprint('test', __name__)
 
-@test_bp.route("/protected", methods=["GET"])
-def protected_route():
-    auth_header = request.headers.get("Authorization", "")
-    token = auth_header.replace("Bearer ", "")
+@bp.route('/test')
+def test_endpoint():
+    return api_response(True, "Test successful", {"version": "1.0.0"})
 
-    user = verify_id_token(token)
-    if not user:
-        return jsonify({"error": "Unauthorized"}), 401
-
-    return jsonify({
-        "message": f"Welcome {user['email']}",
-        "uid": user["uid"]
-    }), 200
+@bp.route('/test-db')
+def test_db_connection():
+    try:
+        db.session.execute(text('SELECT 1'))
+        return api_response(
+            success=True,
+            message="Database connection successful",
+            data={"status": "connected"}
+        )
+    except Exception as e:
+        return api_response(
+            success=False,
+            message="Database connection failed",
+            data={"error": str(e)},
+            status_code=500
+        )
