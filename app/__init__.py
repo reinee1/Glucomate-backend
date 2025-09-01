@@ -14,9 +14,11 @@ def create_app():
     app = Flask(__name__)
 
     # Config
-    app.config['SQLALCHEMY_DATABASE_URI'] = (
-        'postgresql://postgres:Glucomate123@database-glucomate.cwt606ekoliv.us-east-1.rds.amazonaws.com:5432/Glucomate_db'
-    )
+    app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv(
+    "SQLALCHEMY_DATABASE_URI",
+    "postgresql://postgres:Glucomate123@database-glucomate.cwt606ekoliv.us-east-1.rds.amazonaws.com:5432/Glucomate_db"
+)
+
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     app.config["EMAIL_ENABLED"] = os.getenv("EMAIL_ENABLED", "true").lower() == "true"
     app.config['SMTP_HOST'] = os.getenv('SMTP_HOST')
