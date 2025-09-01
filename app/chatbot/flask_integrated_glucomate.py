@@ -18,7 +18,7 @@ from app.extensions import db
 from app.models import User, MedicalProfile, MedicalHistory, UserMedication, Monitoring, Lifestyle, MedicalReminder, WeeklyAssessment
 
 # Import base chatbot functionality
-from clean_bedrock_web_crawler import BedrockWebCrawlerGlucoMate
+from app.chatbot.clean_bedrock_web_crawler import BedrockWebCrawlerGlucoMate
 
 class FlaskPostgreSQLDatabase:
     """Flask SQLAlchemy database adapter for GlucoMate"""
