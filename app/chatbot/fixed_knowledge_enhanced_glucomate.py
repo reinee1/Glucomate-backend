@@ -7,7 +7,7 @@ Adds: Knowledge base queries, medical citations, authoritative sources
 import boto3
 import json
 import sys
-from clean_multilingual_glucomate import MultilingualGlucoMate
+from app.chatbot.clean_multilingual_glucomate import MultilingualGlucoMate
 
 class KnowledgeEnhancedGlucoMate(MultilingualGlucoMate):
     """
