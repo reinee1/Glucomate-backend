@@ -66,8 +66,11 @@ def create_app():
     # Blueprints
     from .routes.auth_routes import auth_bp
     from .routes.medicalinfo_routes import medical_profile_bp
-
+    from .routes.chat_routes import chat_bp
+    
+    app.register_blueprint(chat_bp)
     app.register_blueprint(medical_profile_bp)   
     app.register_blueprint(auth_bp)
 
     return app
+
