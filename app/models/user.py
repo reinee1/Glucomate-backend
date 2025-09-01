@@ -47,3 +47,5 @@ class User(db.Model):
     def clear_password_reset_token(self):
         self.password_reset_token = None
         self.password_reset_expires_at = None
+
+    weekly_assessments = db.relationship("WeeklyAssessment", back_populates="user", cascade="all,delete-orphan")
