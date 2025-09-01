@@ -7,7 +7,7 @@ import boto3
 import json
 import sys
 import os
-from medical_safety import MedicalSafetyGuardrails
+from app.chatbot.medical_safety import MedicalSafetyGuardrails
 
 class GlucoMateCore:
     """
@@ -376,3 +376,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
