@@ -8,6 +8,7 @@ from app.models import MedicalHistory
 from app.models import UserMedication
 from app.models import Monitoring
 from app.models import Lifestyle
+from app.models import Allergy     
 from flask_jwt_extended import jwt_required, get_jwt_identity
 
 
@@ -83,24 +84,19 @@ def save_medical_profile():
 
 @jwt_required()
 def save_medical_history():
-    """Save medical history data and medications for a user"""
+    """Save medical history data, medications, and allergies for a user"""
     # Step 1: Get user ID from JWT
     try:
         identity = get_jwt_identity()
-        print("JWT identity:", identity)  # Debug
         try:
             user_id = int(identity)
-        except (ValueError, TypeError) as e:
-            print("Error converting JWT identity to int:", e)
+        except (ValueError, TypeError):
             return jsonify({"success": False, "message": "Invalid user ID format in token"}), 401
     except Exception as e:
-        print("Error reading JWT:", e)
         return jsonify({"success": False, "message": "Invalid token", "error": str(e)}), 401
 
     # Step 2: Get request data
     data = request.get_json() or {}
-    print("Received medical history data:", data)
-
     required_fields = ["medicalConditions", "familyHeartDisease", "takingInsulin"]
     missing = [f for f in required_fields if f not in data]
     if missing:
@@ -116,50 +112,83 @@ def save_medical_history():
         if missing_insulin:
             return jsonify({"success": False, "message": f"Missing insulin info: {missing_insulin}"}), 422
 
-    # Step 4: Save MedicalHistory and medications
+    # --------- NEW: normalize allergies input ----------
+    # Accept either:
+    #   "allergies": ["Peanuts","Penicillin"]
+    # or
+    #   "allergies": [{"name":"Peanuts"},{"name":"Penicillin"}]
+    raw_allergies = data.get("allergies", []) or []
+    normalized_allergies = []
+    for item in raw_allergies:
+        if isinstance(item, str):
+            candidate = item.strip()
+        elif isinstance(item, dict):
+            candidate = (item.get("name") or "").strip()
+        else:
+            candidate = ""
+        if candidate:
+            normalized_allergies.append(candidate)
+
+    # de-duplicate while preserving order
+    seen = set()
+    deduped_allergies = []
+    for a in normalized_allergies:
+        low = a.lower()
+        if low not in seen:
+            seen.add(low)
+            deduped_allergies.append(a)
+
+    # Step 4: Save MedicalHistory + meds + allergies
     try:
-        # 4a: Get or create MedicalHistory record
+        # 4a: Medical history
         history = MedicalHistory.query.filter_by(user_id=user_id).first()
         if not history:
             history = MedicalHistory(user_id=user_id)
 
         history.family_history_heart_disease = bool(data["familyHeartDisease"])
         history.currently_on_insulin = bool(data["takingInsulin"])
+        # Save other fields you may already have:
+        # history.medical_conditions = data["medicalConditions"]
 
         db.session.add(history)
-        db.session.commit()
-        print("Medical history saved:", history.id)
+        db.session.flush()  # get history.id if needed
 
-        # Step 5: Save medications in the same style as MedicalHistory
-        medications = data.get("medications", [])
-        # Delete old medications (optional)
+        # 4b: Medications (your existing logic)
+        medications = data.get("medications", []) or []
         UserMedication.query.filter_by(user_id=user_id).delete()
-
         for med in medications:
-            name = med.get("medication_name")  # must match model field
+            name = (med.get("medication_name") or "").strip()
             if not name:
-                continue  # skip invalid entries
+                continue
+            obj = UserMedication(
+                user_id=user_id,
+                medication_name=name,
+                dosage=(med.get("dosage") or "").strip(),
+                frequency=(med.get("frequency") or "").strip(),
+            )
+            db.session.add(obj)
 
-            # Check if medication already exists
-            existing_med = UserMedication.query.filter_by(user_id=user_id, medication_name=name).first()
-            if not existing_med:
-                existing_med = UserMedication(user_id=user_id, medication_name=name)
+        # 4c: Allergies (NEW)
+        Allergy.query.filter_by(user_id=user_id).delete()  # simple replace strategy
+        if deduped_allergies:
+            db.session.bulk_save_objects(
+                [Allergy(name=a, user_id=user_id) for a in deduped_allergies]
+            )
 
-            # Update fields
-            existing_med.dosage = med.get("dosage", "")
-            existing_med.frequency = med.get("frequency", "")
-            db.session.add(existing_med)
-
-        # Commit all medications
         db.session.commit()
-        print(f"Saved {len(medications)} medications for user {user_id}")
 
-        return jsonify({"success": True, "message": "Medical history and medications saved successfully."}), 201
+        return jsonify({
+            "success": True,
+            "message": "Medical history, medications, and allergies saved successfully.",
+            "counts": {
+                "medications": len(medications),
+                "allergies": len(deduped_allergies)
+            }
+        }), 201
 
     except Exception as e:
         db.session.rollback()
-        print("Error saving medical history:", e)
-        return jsonify({"success": False, "message": "Error saving medical history", "error": str(e)}), 500
+        return jsonify({"success": False, "message": "Error saving data", "error": str(e)}), 500
 
 @jwt_required()
 def save_monitoring_info():
