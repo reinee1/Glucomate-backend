@@ -7,7 +7,7 @@ Adds: Enhanced knowledge base with web-crawled content
 import boto3
 import json
 import sys
-from fixed_knowledge_enhanced_glucomate import KnowledgeEnhancedGlucoMate
+from app.chatbot.fixed_knowledge_enhanced_glucomate import KnowledgeEnhancedGlucoMate
 
 class BedrockWebCrawlerGlucoMate(KnowledgeEnhancedGlucoMate):
     """
