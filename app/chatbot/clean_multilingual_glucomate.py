@@ -7,7 +7,7 @@ Adds: Translation and cultural adaptation (without automatic language detection)
 import boto3
 import json
 import sys
-from glucomate_core import GlucoMateCore
+from app.chatbot.glucomate_core import GlucoMateCore
 
 class MultilingualGlucoMate(GlucoMateCore):
     """
