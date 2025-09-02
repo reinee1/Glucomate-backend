@@ -7,14 +7,13 @@ from flask_jwt_extended import JWTManager
 from flask_cors import CORS
 import os
 from flask_jwt_extended import exceptions as jwt_exceptions
-FRONTEND_URL = "http://localhost:5173"   # or http://127.0.0.1:5173, just be consistent
+FRONTEND_URL = "http://localhost:5173"  
 
 load_dotenv()
 
 def create_app():
     app = Flask(__name__)
 
-    # ---------- Config ----------
     app.config['SQLALCHEMY_DATABASE_URI'] = (
         'postgresql://postgres:Glucomate123@database-glucomate.cwt606ekoliv.us-east-1.rds.amazonaws.com:5432/Glucomate_db'
     )
@@ -26,23 +25,19 @@ def create_app():
     app.config['SMTP_PASS'] = os.getenv('SMTP_PASS')
     app.config['PUBLIC_BASE_URL'] = 'http://127.0.0.1:5000'
     
-    # JWT Secret Key
+    
     app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY', 'super-secret')  
 
-    # ---------- Init extensions ----------
     db.init_app(app)
     Migrate(app, db)
     jwt = JWTManager(app)
 
-    # ---------- CORS ----------
-    # Fix: Use simpler CORS configuration
     CORS(app, 
          origins=["http://localhost:5173", "http://127.0.0.1:5173"],
          supports_credentials=True,
          methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
          allow_headers=["Content-Type", "Authorization", "X-Requested-With"])
 
-    # Handle preflight requests globally
     def add_cors_headers(response):
         response.headers["Access-Control-Allow-Origin"] = FRONTEND_URL
         response.headers["Access-Control-Allow-Credentials"] = "true"
@@ -50,8 +45,6 @@ def create_app():
         response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
         return response
 
-
-    # ---------- Error handler ----------
     @app.errorhandler(Exception)
     def handle_error(e):
         from werkzeug.exceptions import HTTPException
@@ -59,7 +52,6 @@ def create_app():
             return jsonify(success=False, message=e.description), e.code
         return jsonify(success=False, message=str(e)), 500
 
-    # JWT error handlers
     @jwt.expired_token_loader
     def expired_token_callback(jwt_header, jwt_payload):
         return jsonify({"success": False, "message": "Token expired"}), 401
@@ -72,7 +64,6 @@ def create_app():
     def missing_token_callback(err_msg):
         return jsonify({"success": False, "message": f"Missing token: {err_msg}"}), 401
 
-    # ---------- Blueprints ----------
     from .routes.auth_routes import auth_bp
     from .routes.medicalinfo_routes import medical_profile_bp
 

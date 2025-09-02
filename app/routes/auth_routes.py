@@ -1,4 +1,3 @@
-# app/routes/auth_routes.py
 from flask import Blueprint, request
 from flask_cors import cross_origin
 from app.controllers import auth_controller
@@ -14,7 +13,7 @@ auth_bp.route("/reset-password", methods=["POST"])(auth_controller.reset_passwor
 
 @cross_origin(
     origins=["http://localhost:5173", "http://127.0.0.1:5173"],
-    methods=["POST", "OPTIONS"],
+    methods=["POST", "OPTIONS", "GET"],
     allow_headers=["Content-Type", "Authorization"],
     supports_credentials=True,
 )
