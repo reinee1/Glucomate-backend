@@ -16,3 +16,5 @@ medical_profile_bp.route("/personalinfo/<int:user_id>", methods=["PUT"])(medical
 medical_profile_bp.route("/medicalhistory/<int:user_id>", methods=["PUT"])(medicalinfo_controller.update_medical_history)
 medical_profile_bp.route("/monitoringinfo/<int:user_id>", methods=["PUT"])(medicalinfo_controller.update_monitoring_info)
 medical_profile_bp.route("/lifestylehabits/<int:user_id>", methods=["PUT"])(medicalinfo_controller.update_lifestyle_habits)
+
+
