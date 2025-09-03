@@ -13,3 +13,5 @@ from .chat_message import ChatMessage
 from .chat_session import ChatSession
 from .notification import Notification
 from .allergies import Allergy
+
+from .weekly_assessment import WeeklyAssessment
