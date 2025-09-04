@@ -12,17 +12,16 @@ class WeeklyAssessment(db.Model):
     range_compliance = db.Column(db.Float)
     energy_level = db.Column(db.Integer)
     sleep_quality = db.Column(db.Integer)
-    medication_adherence = db.Column(db.Boolean)
+
+    # CHANGE THIS:
+    # medication_adherence = db.Column(db.Boolean)
+    medication_adherence = db.Column(db.Integer)   # store 0–100 adherence or a bucket code
 
     concerns = db.Column(db.Text)
     overall_feeling = db.Column(db.String(255))
 
-    # ensure a user can have only one record per week
     __table_args__ = (
         db.UniqueConstraint("user_id", "week_date", name="uq_weekly_assessments_user_week"),
     )
 
     user = db.relationship("User", back_populates="weekly_assessments")
-
-    def __repr__(self):
-        return f"<WeeklyAssessment user_id={self.user_id} week_date={self.week_date}>"
